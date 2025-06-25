@@ -1,15 +1,13 @@
 import wx
 import wx.aui
-from typing import List
-from dataclasses import dataclass, field
 
-from plot import SeismicEventsMapPlot, SeismicPlotGroup
+from plot import SeismicEventsMapPlot
 from toolbar import MainToolbar
 from menu import MainMenu
 from properties import PropertiesPanel
 from object import ObjectsPanel
 from seismic_import import SeismicImport
-from object_data import DxfPlot, DxfPlotLayer, SeismicEvents
+from object_data import DxfPlot, DxfPlotLayer
 
 class MainWindow(wx.Frame):
     def __init__(self):
@@ -39,14 +37,14 @@ class MainWindow(wx.Frame):
         self.toolbar.Bind(wx.EVT_TOOL, self.on_open_csv, id=wx.ID_FILE2)
 
     def on_open_dxf(self, event):
-        import ezdxf
         with wx.FileDialog(self, "Open XYZ file", wildcard="DXF files (*.dxf)|*.dxf", style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
+            import ezdxf
+            
             doc = ezdxf.readfile(fileDialog.GetPath())
             object = DxfPlot(fileDialog.GetPath(), affine_transform_filename=None, data=doc)
             object.data = doc
-            msp = doc.modelspace
             for layer in doc.layers:
                 object.layers.append(DxfPlotLayer(layer.dxf.name, self.plot.add_group()))
             layer_group_mapping = {}
@@ -55,6 +53,19 @@ class MainWindow(wx.Frame):
             self.plot.dxf_load(doc, layer_group_mapping, affine=None)
             self.objects.append(object)
             self.object.update(self.objects)
+
+    def delete_object(self, object):
+        if object in self.objects:
+            self.objects.remove(object)
+            if isinstance(object, DxfPlot):
+                for layer in object.layers:
+                    if layer.visible:
+                        self.plot.clear_group(layer.group)
+
+    def update_visibility(self, object):
+        if isinstance(object, DxfPlot):
+            for layer in object.layers:
+                self.plot.set_group_visibility(layer.group, layer.visible)
                 
     def on_open_csv(self, event):
         dlg = SeismicImport(self)
@@ -62,6 +73,9 @@ class MainWindow(wx.Frame):
             ...
 
 if __name__ == '__main__':
+    from ctx import app_ctx
+
     app = wx.App(0)
-    MainWindow()
+    main = MainWindow()
+    app_ctx().main = main
     app.MainLoop()

@@ -28,6 +28,7 @@ class SeismicEventsMapPlot(wx.Panel):
         sz.Add(self.h_ruler, 1, wx.EXPAND)
         sz.Add(self.v_ruler, 1, wx.EXPAND)
         self.canvas = FloatCanvas.FloatCanvas(self)
+        self.canvas.SetDoubleBuffered(True)
         sz.Add(self.canvas, 1, wx.EXPAND)
         self.SetSizer(sz)
         self.Layout()
@@ -189,9 +190,9 @@ class SeismicEventsMapPlot(wx.Panel):
         return group
 
     def clear_group(self, group: SeismicPlotGroup):
-        for o in group.objects:
-            self.canvas.RemoveObjects(o)
+        self.canvas.RemoveObjects(group.objects)
         group.objects = []
+        self.canvas.Draw()
 
     def remove_group(self, group: SeismicPlotGroup):
         self.clear_group(group)
@@ -202,7 +203,6 @@ class SeismicEventsMapPlot(wx.Panel):
             if visible:
                 self.canvas.AddObjects(group.objects)
             else:
-                print(group.objects)
                 self.canvas.RemoveObjects(group.objects)
             group.visible = visible
         self.canvas.Draw()
