@@ -1,20 +1,24 @@
 import wx
 import wx.aui
 
-from plot import SeismicEventsMapPlot
+from plot import SeismicEventsMapPlot, EVT_PLOT_CLICK
 from toolbar import MainToolbar
 from menu import MainMenu
 from properties import PropertiesPanel
 from object import ObjectsPanel
 from seismic_import import SeismicImport
 from object_data import DxfPlot, DxfPlotLayer
+from operations import ChangeCoordSystemOperation
 
 class MainWindow(wx.Frame):
     def __init__(self):
         super().__init__(None, title='Карта сейсмических событий', size=wx.Size(800, 600))
 
         self.objects = []
+        self.operation = None
         self.menu = MainMenu()
+        self.statusbar = wx.StatusBar(self)
+        self.SetStatusBar(self.statusbar)
         self.SetMenuBar(self.menu)
         self.toolbar = MainToolbar(self)
         self.mgr = wx.aui.AuiManager(self)
@@ -33,8 +37,19 @@ class MainWindow(wx.Frame):
     def bind_all(self):
         self.menu.Bind(wx.EVT_MENU, self.on_open_dxf, id=wx.ID_FILE1)
         self.menu.Bind(wx.EVT_MENU, self.on_open_csv, id=wx.ID_FILE2)
+        self.menu.Bind(wx.EVT_MENU, self.on_start_change_coord_system_operation, id=wx.ID_FILE3)
         self.toolbar.Bind(wx.EVT_TOOL, self.on_open_dxf, id=wx.ID_FILE1)
         self.toolbar.Bind(wx.EVT_TOOL, self.on_open_csv, id=wx.ID_FILE2)
+        self.mgr.Bind(wx.aui.EVT_AUI_PANE_CLOSE, self.on_pane_closed)
+        self.plot.Bind(EVT_PLOT_CLICK, self.on_plot_click)
+
+    def on_plot_click(self, event):
+        if self.operation is not None:
+            self.operation.on_event(event)
+
+    def on_pane_closed(self, event):
+        if self.operation is not None:
+            self.operation.on_event(event)
 
     def on_open_dxf(self, event):
         with wx.FileDialog(self, "Open XYZ file", wildcard="DXF files (*.dxf)|*.dxf", style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as fileDialog:
@@ -71,6 +86,13 @@ class MainWindow(wx.Frame):
         dlg = SeismicImport(self)
         if dlg.ShowModal() == wx.ID_OK:
             ...
+
+    def on_start_change_coord_system_operation(self, event):
+        def end():
+            self.operation = None
+
+        self.operation = ChangeCoordSystemOperation(self.mgr, self.plot, end)
+        self.operation.init()
 
 if __name__ == '__main__':
     from ctx import app_ctx

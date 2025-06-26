@@ -16,4 +16,7 @@ class MainMenu(wx.MenuBar):
         m = wx.Menu()
         self.Append(m, "Вид")
         m = wx.Menu()
+        i = m.Append(wx.ID_FILE3, "Смена системы координат")
+        self.Append(m, "Операции")
+        m = wx.Menu()
         self.Append(m, "Помощь")
