@@ -11,7 +11,7 @@ from plot import PlotClickEvent
 class FloatEditor(dv.DataViewTextRenderer):
     def __init__(self, *args, **kwds):
         super().__init__(*args, **kwds)
-    
+
     def OnEditingDone(self, value):
         try:
             fval = float(value)
@@ -23,7 +23,7 @@ class Panel(wx.Panel):
     def __init__(self, parent):
         super().__init__(parent)
         self.points = []
-
+        sz_box = wx.BoxSizer(wx.VERTICAL)
         sz = wx.BoxSizer(wx.VERTICAL)
         self.choice = wx.Choice(self)
         for o in app_ctx().main.objects:
@@ -53,7 +53,9 @@ class Panel(wx.Panel):
         self.btn_apply = wx.Button(self, label="Применить")
         self.btn_apply.Disable()
         sz.Add(self.btn_apply, 0, wx.EXPAND)
-        self.SetSizer(sz)
+        sz_box = wx.BoxSizer(wx.VERTICAL)
+        sz_box.Add(sz, 1, wx.EXPAND | wx.ALL, border=5)
+        self.SetSizer(sz_box)
         self.Layout()
 
 class SetCoordsDialog(wx.Dialog):
@@ -87,6 +89,7 @@ class ChangeCoordSystemOperation:
         self.plot = plot
         self.end_fn = end
         self.mgr_pane_info = None
+        self.points = []
 
     def init(self):
         panel = Panel(app_ctx().main)
@@ -110,18 +113,33 @@ class ChangeCoordSystemOperation:
         self.update_controls_state()
 
     def on_add_handmade(self, event):
-        self.panel.list_store.AppendItem(["0.0", "0.0", "0.0", "0.0"])
+      import wx.lib.floatcanvas.FCObjects
+      self.panel.list_store.AppendItem(["0.0", "0.0", "0.0", "0.0"])
+      point = wx.lib.floatcanvas.FCObjects.Point((event.world_pos[0], event.world_pos[1]),
+        Diameter=5,              # диаметр в пикселях на экране
+        Color="RED",
+        InForeground=True)
+      self.plot.canvas.AddObject(point)
+      self.plot.canvas.Draw()
+      self.points.append((0.0, 0.0, point))
 
     def on_remove(self, event):
         if self.panel.list.GetSelection() != -1:
             row = self.panel.list_store.GetRow(self.panel.list.GetSelection())
             self.panel.list_store.DeleteItem(row)
+            self.plot.canvas.RemoveObject(self.points[row][2])
+            self.points.pop(row)
+            self.plot.canvas.Draw()
 
     def cancel(self):
         self.plot.SetCursor(wx.NullCursor)
         self.mgr.ClosePane(self.mgr_pane_info)
         self.mgr.Update()
         self.mgr_pane_info = None
+        for x, y, obj in self.points:
+            self.plot.canvas.RemoveObject(obj)
+        self.points = []
+        self.plot.canvas.Draw()
 
     def update_list(self): ...
 
@@ -129,8 +147,16 @@ class ChangeCoordSystemOperation:
         self.panel.list_toolbar.EnableTool(wx.ID_REMOVE, self.panel.list.GetSelection() != -1)
 
     def on_plot_click(self, event):
+        import wx.lib.floatcanvas.FCObjects
         dlg = SetCoordsDialog(app_ctx().main)
         if dlg.ShowModal() == wx.ID_OK:
+            point = wx.lib.floatcanvas.FCObjects.Point((event.world_pos[0], event.world_pos[1]),
+              Diameter=5,              # диаметр в пикселях на экране
+              Color="RED",
+              InForeground=True)
+            self.plot.canvas.AddObject(point)
+            self.plot.canvas.Draw()
+            self.points.append((event.world_pos[0], event.world_pos[1], point))
             self.panel.list_store.AppendItem([str(event.world_pos[0]), str(event.world_pos[1]), str(dlg.x_field.GetValue()), str(dlg.y_field.GetValue())])
 
     def on_aui_pane_close(self, event):
@@ -139,6 +165,10 @@ class ChangeCoordSystemOperation:
           event.Veto()
       else:
           self.plot.SetCursor(wx.NullCursor)
+          for x, y, obj in self.points:
+              self.plot.canvas.RemoveObject(obj)
+          self.points = []
+          self.plot.canvas.Draw()
           self.end_fn()
 
     def on_event(self, event):
