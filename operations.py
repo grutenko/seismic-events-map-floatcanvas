@@ -1,11 +1,11 @@
 import wx
 import wx.aui
+import wx.dataview
 import os
 
 from ctx import app_ctx
 from icon import get_art
-from object_data import DxfPlot 
-from plot import EVT_PLOT_CLICK, PlotClickEvent
+from object_data import DxfPlot
 
 class ChangeCoordSystemOperation:
     def __init__(self, mgr, plot, end):
@@ -28,16 +28,22 @@ class ChangeCoordSystemOperation:
             sz.Add(label, 0, wx.EXPAND)
             sz.Add(self.choice, 0, wx.EXPAND | wx.BOTTOM, border=10)
             self.list_toolbar = wx.ToolBar(self)
-            self.list_toolbar.AddTool(wx.ID_ADD, "Добавить", get_art(wx.ART_PLUS))
-            self.list_toolbar.AddTool(wx.ID_REMOVE, "Удалить", get_art(wx.ART_MINUS))
+            self.list_toolbar.AddTool(wx.ID_ADD, "Добавить", wx.BitmapBundle(get_art(wx.ART_PLUS)))
+            self.list_toolbar.AddTool(wx.ID_REMOVE, "Удалить", wx.BitmapBundle(get_art(wx.ART_MINUS)))
             self.list_toolbar.EnableTool(wx.ID_REMOVE, False)
             self.list_toolbar.Realize()
             sz.Add(self.list_toolbar, 0, wx.EXPAND)
-            self.list = wx.ListCtrl(self, style=wx.LC_REPORT)
-            self.list.AppendColumn("X0")
-            self.list.AppendColumn("Y0")
-            self.list.AppendColumn("X1")
-            self.list.AppendColumn("Y1")
+            self.list_store = wx.dataview.DataViewListStore()
+            self.list_store.AppendColumn("float")
+            self.list_store.AppendColumn("float")
+            self.list_store.AppendColumn("float")
+            self.list_store.AppendColumn("float")
+            self.list = wx.dataview.DataViewListCtrl(self, style=wx.dataview.DV_ROW_LINES | wx.dataview.DV_VERT_RULES)
+            self.list.AppendTextColumn("X0", width=50, mode=wx.dataview.DATAVIEW_CELL_EDITABLE)
+            self.list.AppendTextColumn("Y0", width=50, mode=wx.dataview.DATAVIEW_CELL_EDITABLE)
+            self.list.AppendTextColumn("X1", width=50, mode=wx.dataview.DATAVIEW_CELL_EDITABLE)
+            self.list.AppendTextColumn("Y1", width=50, mode=wx.dataview.DATAVIEW_CELL_EDITABLE)
+            self.list.AssociateModel(self.list_store)
             sz.Add(self.list, 1, wx.EXPAND | wx.BOTTOM, border=10)
             self.btn_apply = wx.Button(self, label="Приаменить")
             self.btn_apply.Disable()
@@ -49,8 +55,8 @@ class ChangeCoordSystemOperation:
         panel = self.__class__.Panel(app_ctx().main)
         self.mgr_pane_info = (wx.aui.AuiPaneInfo()
             .Float()
-            .FloatingPosition((100, 100))
-            .FloatingSize((200, 400))
+            .FloatingPosition(100, 100)
+            .FloatingSize(200, 400)
             .Dockable(False)
             .DestroyOnClose(True)
             .Name("change_coord_system_pane")
@@ -58,6 +64,19 @@ class ChangeCoordSystemOperation:
         self.mgr.AddPane(panel, self.mgr_pane_info)
         self.plot.SetCursor(wx.Cursor(wx.CURSOR_HAND))
         self.mgr.Update()
+        panel.list_toolbar.Bind(wx.EVT_TOOL, self.on_add_handmade, id=wx.ID_ADD)
+        panel.list_toolbar.Bind(wx.EVT_TOOL, self.on_remove, id=wx.ID_REMOVE)
+        panel.list.Bind(wx.dataview.EVT_DATAVIEW_ITEM_ACTIVATED, self.on_item_activated)
+        self.panel = panel
+
+    def on_item_activated(self, event):
+        self.update_controls_state()
+
+    def on_add_handmade(self, event):
+        self.panel.list_store.AppendItem(["", "", "", ""])
+
+    def on_remove(self, event):
+        ...
 
     def cancel(self):
         self.plot.SetCursor(wx.NullCursor)
@@ -67,17 +86,30 @@ class ChangeCoordSystemOperation:
 
     def update_list(self): ...
 
+    def update_controls_state(self):
+        self.panel.list_toolbar.EnableTool(wx.ID_REMOVE, self.panel.list.GetSelectedRow() != -1)
+
+    class SetCoordsDialog(wx.Dialog):
+      def __init__(self, parent):
+        super().__init__(parent, title="Кординаты точки в другой системе")
+
+    def on_plot_click(self, event):
+        dlg = self.__class__.SetCoordsDialog(app_ctx().main)
+        if dlg.ShowModal() == wx.ID_OK:
+            ...
+
+    def on_aui_pane_close(self, event):
+      ret = wx.MessageBox("Отменить операцию?", style=wx.YES | wx.NO | wx.YES_DEFAULT | wx.ICON_ASTERISK)
+      if ret == wx.NO:
+          event.Veto()
+      else:
+          self.plot.SetCursor(wx.NullCursor)
+          self.end_fn()
+
     def on_event(self, event):
         if isinstance(event, wx.aui.AuiManagerEvent) and event.GetEventType() == wx.aui.EVT_AUI_PANE_CLOSE.typeId:
             pane = event.GetPane()
             if pane.name == "change_coord_system_pane":
-                ret = wx.MessageBox("Отменить операцию?", style=wx.YES | wx.NO | wx.YES_DEFAULT | wx.ICON_ASTERISK)
-                if ret == wx.NO:
-                    event.Veto()
-                else:
-                    self.plot.SetCursor(wx.NullCursor)
-                    self.end_fn()
+                self.on_aui_pane_close(event)
         elif isinstance(event, PlotClickEvent):
-            dlg = wx.Dialog(app_ctx().main, title="Кординаты точки в другой системе")
-            dlg.ShowModal()
-
+          self.on_plot_click(event)
