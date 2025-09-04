@@ -1,0 +1,3 @@
+import wx
+
+class MainStatubar(wx.StatusBar): ...
