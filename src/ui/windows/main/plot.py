@@ -55,22 +55,25 @@ class PlotWidget(wx.Panel):
         #Временный(скорей всего) костыль, чтобы не тормозило панаромирование чертежа. Нужно найти более элегантное решение
         #которое будет сочетать этот костыль и конечное обновление линейки после отпускания EVT_MIDDLE_UP чтобы
         #обновить линейку по окончании процедуры панаромирования а так же не подвешивать постоянной её перерисовкой
-        x0 = ctypes.c_double()
-        y0 = ctypes.c_double()
-        x1 = ctypes.c_double()
-        y1 = ctypes.c_double()
-        width, height = self.GetSize().Get()
-        if width == 0 or height == 0:
-            return
-        lc.lcCoordWndToDrw(self.lc_wnd, 0, 0, ctypes.pointer(x0), ctypes.pointer(y0))
-        lc.lcCoordWndToDrw(self.lc_wnd, width, height, ctypes.pointer(x1), ctypes.pointer(y1))
-        width, height = self.GetSize().Get()
-        self.hz_ruler.set_offset(-x0.value, False)
-        self.hz_ruler.set_scale(width / abs(x1.value - x0.value), False)
-        self.vt_ruler.set_offset(-y1.value, False)
-        self.vt_ruler.set_scale(height / (y0.value - y1.value), False)
-        self.vt_ruler.draw()
-        self.hz_ruler.draw()
+        t = time.time()
+        if (time.time() - self.ruler_update_time) >=(1 / 60):
+            x0 = ctypes.c_double()
+            y0 = ctypes.c_double()
+            x1 = ctypes.c_double()
+            y1 = ctypes.c_double()
+            width, height = self.GetSize().Get()
+            if width == 0 or height == 0:
+                return
+            lc.lcCoordWndToDrw(self.lc_wnd, 0, 0, ctypes.pointer(x0), ctypes.pointer(y0))
+            lc.lcCoordWndToDrw(self.lc_wnd, width, height, ctypes.pointer(x1), ctypes.pointer(y1))
+            width, height = self.GetSize().Get()
+            self.hz_ruler.set_offset(-x0.value, False)
+            self.hz_ruler.set_scale(width / abs(x1.value - x0.value), False)
+            self.vt_ruler.set_offset(-y1.value, False)
+            self.vt_ruler.set_scale(height / (y0.value - y1.value), False)
+            self.vt_ruler.draw()
+            self.hz_ruler.draw()
+            self.ruler_update_time = t
 
     def on_canvas_size(self, event):
         rc = lc.lcWndResize(
